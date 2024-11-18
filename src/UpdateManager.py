@@ -19,7 +19,8 @@ class UpdateManager:
         """
         Initialize the UpdateManager with a ConfigManager instance and command-line arguments.
         """
-        self.version = '2.2.0'
+        self.version = '2.3.0'
+        self.process_mutex = 'mutex.lock'
         self.config_file_name = 'tools.ini'
         self.config_section_defaults = 'UpdaterConfig'
         self.config_section_self_update = 'UpdaterAutoUpdater'
@@ -51,7 +52,36 @@ class UpdateManager:
         :param frame: Current stack frame
         """
         print(colorama.Fore.YELLOW + 'SIGINT or CTRL-C detected. Exiting gracefully')
+        self.cleanup_mutex()
         sys.exit(0)
+
+    def check_single_instance(self):
+        """
+        Ensures only a single instance of the script is running by creating a lock file with the current PID.
+        If the lock file exists and contains a different PID, the script will exit.
+        """
+        if self.arguments.disable_mutex_check:
+            print('Mutex check is disabled. Multiple instances can run concurrently.')
+            return
+
+        if os.path.exists(self.process_mutex):
+            with open(self.process_mutex, 'r') as lock:
+                existing_pid = int(lock.read().strip())
+
+            if existing_pid != os.getpid():
+                print(f"Another instance of the script is already running or the mutex file '{self.process_mutex}' was left from a previous execution.")
+                sys.exit(1)
+
+        # Create a new lock file with the current PID
+        with open(self.process_mutex, 'w') as lock:
+            lock.write(str(os.getpid()))
+
+    def cleanup_mutex(self):
+        """
+        Removes the mutex file if mutex check is enabled and the file exists.
+        """
+        if not self.arguments.disable_mutex_check and os.path.exists(self.process_mutex):
+            os.remove(self.process_mutex)
 
     def get_argparse_default(self, option, default, is_bool=True):
         """
@@ -165,6 +195,13 @@ class UpdateManager:
             action=argparse.BooleanOptionalAction,
             default=False
         )
+        parser.add_argument(
+            '--disable-mutex-check',
+            dest='disable_mutex_check',
+            help='disable the mutex check to allow multiple instances of the script',
+            action=argparse.BooleanOptionalAction,
+            default=False
+        )
 
         self.arguments = parser.parse_args()
 
@@ -269,6 +306,7 @@ class UpdateManager:
             try:
                 updater.update(tool)
             except Exception as exception:
+                failed_updates += 1
                 logging.info(exception)
 
         logging.info(colorama.Fore.YELLOW + f"\n[*] Update process completed: {total_updates - failed_updates} succeeded, {failed_updates} failed out of {total_updates} total updates.")
@@ -298,8 +336,10 @@ class UpdateManager:
         self.print_banner()
         self.parse_arguments()
         self.set_logging_level()
+        self.check_single_instance()
         self.update_default_params()
         self.handle_updates()
+        self.cleanup_mutex()
 
 
 # Entry point for the script

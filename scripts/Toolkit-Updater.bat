@@ -4,6 +4,9 @@ echo Update all Universal Update stuff and restart...
 :: Kill updater process to be able to update all the files
 taskkill /IM updater.exe /F
 
+:: Clean updater mutex
+del mutex.lock
+
 :: Backup user tools.ini
 move tools.ini tools.ini.old
 
@@ -23,4 +26,4 @@ bin\auto-config-ini.exe /FOLDER=..\updater /TYPE=sync
 del tools.ini.old
 
 :: Restart updater
-cmd /c updater.exe --disable-mutex-check
+cmd /c updater.exe
