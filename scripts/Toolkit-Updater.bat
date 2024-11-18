@@ -23,4 +23,4 @@ bin\auto-config-ini.exe /FOLDER=..\updater /TYPE=sync
 del tools.ini.old
 
 :: Restart updater
-cmd /c updater.exe
+cmd /c updater.exe --disable-mutex-check
